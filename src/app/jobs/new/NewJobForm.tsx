@@ -16,6 +16,12 @@ import { Input } from "@/components/ui/input";
 import Select from "@/components/ui/select";
 import { jobTypes, locationTypes } from "@/lib/job-types";
 import LocationInput from "@/components/LocationInput";
+import { X } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import RichTextEditor from "@/components/RichTextEditor";
+import { draftToMarkdown } from "markdown-draft-js";
+import LoadingButton from "@/components/LoadingButton";
+import { createJobPosting } from "./actions";
 
 const NewJobForm = () => {
   const form = useForm<CreateJobValues>({
@@ -33,7 +39,20 @@ const NewJobForm = () => {
   } = form;
 
   async function onSubmit(values: CreateJobValues) {
-    alert(JSON.stringify(values, null, 2));
+    const formData = new FormData();
+
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) {
+        formData.append(key, value);
+      }
+    });
+
+    try {
+      await createJobPosting(formData);
+    } catch (error) {
+      alert("Something went wrong, please try again.");
+      console.log(error);
+    }
   }
 
   return (
@@ -95,7 +114,7 @@ const NewJobForm = () => {
               )}
             />
 
-            {/* <FormField
+            <FormField
               control={control}
               name="companyName"
               render={({ field }) => (
@@ -107,17 +126,17 @@ const NewJobForm = () => {
                   <FormMessage />
                 </FormItem>
               )}
-            /> */}
+            />
 
             <FormField
               control={control}
               name="companyLogo"
-              render={({ field: { value, onChange, ...fieldValue } }) => (
+              render={({ field: { value, onChange, ...fieldValues } }) => (
                 <FormItem>
                   <FormLabel>Company Logo</FormLabel>
                   <FormControl>
                     <Input
-                      {...fieldValue}
+                      {...fieldValues}
                       type="file"
                       accept="image/*"
                       onChange={(e) => {
@@ -136,9 +155,18 @@ const NewJobForm = () => {
               name="locationType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location</FormLabel>
+                  <FormLabel>Location Type</FormLabel>
                   <FormControl>
-                    <Select {...field} defaultValue="">
+                    <Select
+                      {...field}
+                      defaultValue=""
+                      onChange={(e) => {
+                        field.onChange(e);
+                        if (e.currentTarget.value === "Remote") {
+                          trigger("location");
+                        }
+                      }}
+                    >
                       <option value="" hidden>
                         Select an option
                       </option>
@@ -166,10 +194,110 @@ const NewJobForm = () => {
                       ref={field.ref}
                     />
                   </FormControl>
+                  {watch("location") && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setValue("location", "", { shouldValidate: true });
+                        }}
+                      >
+                        <X size={20} />
+                      </button>
+                      <span className="text-sm">{watch("location")}</span>
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            <div className="space-y-2">
+              <Label htmlFor="applicationEmail">How to apply</Label>
+
+              <div className="flex justify-between">
+                <FormField
+                  control={control}
+                  name="applicationEmail"
+                  render={({ field }) => (
+                    <FormItem className="grow">
+                      <FormControl>
+                        <div className="flex items-center">
+                          <Input
+                            id="applicationEmail"
+                            placeholder="Email"
+                            type="email"
+                            {...field}
+                          />
+                          <span className="mx-2">or</span>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="applicationUrl"
+                  render={({ field }) => (
+                    <FormItem className="grow">
+                      <FormControl>
+                        <Input
+                          placeholder="Website"
+                          type="url"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            trigger("applicationEmail");
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <FormField
+              control={control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <Label onClick={() => setFocus("description")}>
+                    Description
+                  </Label>
+                  <FormControl>
+                    <RichTextEditor
+                      onChange={(draft) =>
+                        field.onChange(draftToMarkdown(draft))
+                      }
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={control}
+              name="salary"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Salary</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="number" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <LoadingButton loading={isSubmitting} type="submit">
+              Submit
+            </LoadingButton>
           </form>
         </Form>
       </div>

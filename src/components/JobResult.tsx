@@ -3,14 +3,21 @@ import prisma from "@/lib/prisma";
 import JobListItem from "./JobListItem";
 import { JobFilterValues } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 interface JobResultProps {
   filterValues: JobFilterValues;
+  page?: number;
 }
 
-const JobResult = async ({
-  filterValues: { q, type, location, remote },
-}: JobResultProps) => {
+const JobResult = async ({ filterValues, page = 1 }: JobResultProps) => {
+  const { q, type, location, remote } = filterValues;
+
+  const JOB_PER_PAGE = 6;
+  const skip = (page - 1) * JOB_PER_PAGE;
+
   // prepare searchString
   const searchString = q
     ?.split(" ")
@@ -40,23 +47,93 @@ const JobResult = async ({
   };
 
   // Find Jobs
-  const jobs = await prisma.job.findMany({
+  const jobsPromise = prisma.job.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    take: JOB_PER_PAGE,
+    skip,
   });
+
+  const jobCountPromise = prisma.job.count({ where });
+
+  const [jobs, totalResults] = await Promise.all([
+    jobsPromise,
+    jobCountPromise,
+  ]);
 
   return (
     <div className="grow space-y-4">
       {jobs.map((job) => (
-        <JobListItem key={job.id} job={job} />
+        <Link key={job.id} href={`/jobs/${job.slug}`} className="block">
+          <JobListItem job={job} />
+        </Link>
       ))}
       {jobs.length === 0 && (
         <p className="m-auto text-center">
           No jobs found. Try adjusting your search filters.
         </p>
       )}
+      {jobs.length > 0 && (
+        <Pagination
+          currentPage={page}
+          totalPages={Math.ceil(totalResults / JOB_PER_PAGE)}
+          filterValues={filterValues}
+        />
+      )}
     </div>
   );
 };
 
 export default JobResult;
+
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  filterValues: JobFilterValues;
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  filterValues: { q, type, location, remote },
+}: PaginationProps) {
+  function generatePageLink(page: number) {
+    const searchParams = new URLSearchParams({
+      ...(q && { q }),
+      ...(type && { type }),
+      ...(location && { location }),
+      ...(remote && { remote: "true" }),
+      page: page.toString(),
+    });
+
+    return `/?${searchParams.toString()}`;
+  }
+
+  return (
+    <div className="flex justify-between">
+      <Link
+        href={generatePageLink(currentPage - 1)}
+        className={cn(
+          "flex items-center gap-2 font-semibold",
+          currentPage <= 1 && "invisible",
+        )}
+      >
+        <ArrowLeft size={16} />
+        Previous page
+      </Link>
+      <span className="font-semibold">
+        Page {currentPage} of {totalPages}
+      </span>
+      <Link
+        href={generatePageLink(currentPage + 1)}
+        className={cn(
+          "flex items-center gap-2 font-semibold",
+          currentPage >= totalPages && "invisible",
+        )}
+      >
+        Next page
+        <ArrowRight size={16} />
+      </Link>
+    </div>
+  );
+}
